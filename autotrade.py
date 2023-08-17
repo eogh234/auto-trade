@@ -1,10 +1,16 @@
+import os
 import requests
 import json
 import datetime
 import time
 import yaml
+import random
+from parsing import *
 
-with open('config.yaml', encoding='UTF-8') as f:
+ROOT_DIR = os.path.abspath(os.curdir)
+CONFIG_PATH = os.path.join(ROOT_DIR, 'config.yaml')
+
+with open(CONFIG_PATH, encoding='UTF-8') as f:
     _cfg = yaml.load(f, Loader=yaml.FullLoader)
 APP_KEY = _cfg['APP_KEY']
 APP_SECRET = _cfg['APP_SECRET']
@@ -223,7 +229,7 @@ def sell(code="005930", qty="1"):
 try:
     ACCESS_TOKEN = get_access_token()
 
-    symbol_list = ["005930", "035720", "000660", "069500"]  # 매수 희망 종목 리스트
+    symbol_list = get_best_list()  # 매수 희망 종목 리스트
     bought_list = []  # 매수 완료된 종목 리스트
     total_cash = get_balance()  # 보유 현금 조회
     stock_dict = get_stock_balance()  # 보유 주식 조회
@@ -233,6 +239,8 @@ try:
     buy_percent = 0.33  # 종목당 매수 금액 비율
     buy_amount = total_cash * buy_percent  # 종목별 주문 금액 계산
     soldout = False
+
+    random.shuffle(symbol_list)  # 종목 리스트 랜덤 셔플
 
     send_message("===국내 주식 자동매매 프로그램을 시작합니다===")
     while True:
