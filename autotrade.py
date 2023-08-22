@@ -7,10 +7,7 @@ import yaml
 import random
 from parsing import *
 
-ROOT_DIR = os.path.abspath(os.curdir)
-CONFIG_PATH = os.path.join(ROOT_DIR, 'config.yaml')
-
-with open(CONFIG_PATH, encoding='UTF-8') as f:
+with open('/Users/Daeho/Projects/auto-trade/config.yaml', encoding='UTF-8') as f:
     _cfg = yaml.load(f, Loader=yaml.FullLoader)
 APP_KEY = _cfg['APP_KEY']
 APP_SECRET = _cfg['APP_SECRET']
@@ -230,37 +227,65 @@ try:
     ACCESS_TOKEN = get_access_token()
 
     symbol_list = get_best_list()  # 매수 희망 종목 리스트
+    symbol_name_list = []
+    symbol_code_list = []
     bought_list = []  # 매수 완료된 종목 리스트
     total_cash = get_balance()  # 보유 현금 조회
     stock_dict = get_stock_balance()  # 보유 주식 조회
     for sym in stock_dict.keys():
         bought_list.append(sym)
-    target_buy_count = 3  # 매수할 종목 수
+    target_buy_count = 5  # 매수할 종목 수
     buy_percent = 0.33  # 종목당 매수 금액 비율
     buy_amount = total_cash * buy_percent  # 종목별 주문 금액 계산
     soldout = False
+    retry_count = 10
 
-    random.shuffle(symbol_list)  # 종목 리스트 랜덤 셔플
+    for i in range(retry_count):
+        if symbol_list:
+            random.shuffle(symbol_list)  # 종목 리스트 랜덤 셔플
+            break
+        else:
+            send_message("symbol_list가 비어있습니다. 재시도합니다.")
+            symbol_list = get_best_list()
+            time.sleep(2)
+            if i == retry_count - 1 and not symbol_list:
+                symbol_list = ["005930", "035720", "000660", "069500"]
+                send_message("symbol_list 불러오기 실패. default로 설정합니다.")
+
+    for name, code in symbol_list:
+        symbol_name_list.append(name)
+        symbol_code_list.append(code)
 
     send_message("===국내 주식 자동매매 프로그램을 시작합니다===")
+    send_message(symbol_name_list)
     while True:
         t_now = datetime.datetime.now()
         t_9 = t_now.replace(hour=9, minute=0, second=0, microsecond=0)
-        t_start = t_now.replace(hour=9, minute=5, second=0, microsecond=0)
+        t_start = t_now.replace(hour=9, minute=5, second=30, microsecond=0)
         t_sell = t_now.replace(hour=15, minute=15, second=0, microsecond=0)
-        t_exit = t_now.replace(hour=15, minute=20, second=0, microsecond=0)
+        t_exit = t_now.replace(hour=15, minute=20, second=30, microsecond=0)
         today = datetime.datetime.today().weekday()
         if today == 5 or today == 6:  # 토요일이나 일요일이면 자동 종료
             send_message("주말이므로 프로그램을 종료합니다.")
             break
-        if t_9 < t_now < t_start and soldout == False:  # 잔여 수량 매도
+        if t_9 < t_now < t_start and soldout == False:  # 잔여 수량 매도 AM 09:00 ~ AM 09:05:30
+            send_message("잔여 수량을 매도합니다.")
             for sym, qty in stock_dict.items():
                 sell(sym, qty)
-            soldout == True
-            bought_list = []
+                time.sleep(1)
+
+            send_message("잔여 수량 매도 완료. 30초 대기..")
+            time.sleep(30)
+
             stock_dict = get_stock_balance()
-        if t_start < t_now < t_sell:  # AM 09:05 ~ PM 03:15 : 매수
-            for sym in symbol_list:
+            time.sleep(1)
+            if not stock_dict:
+                soldout = True
+                bought_list = []
+            else:
+                soldout = False
+        if t_start < t_now < t_sell:  # AM 09:05:30 ~ PM 03:15 : 매수
+            for sym in symbol_code_list:
                 if len(bought_list) < target_buy_count:
                     if sym in bought_list:
                         continue
@@ -279,15 +304,28 @@ try:
                                 get_stock_balance()
                     time.sleep(1)
             time.sleep(1)
-            if t_now.minute == 30 and t_now.second <= 5:
+            if t_now.minute == 30 and t_now.second <= 10:
                 get_stock_balance()
                 time.sleep(5)
-        if t_sell < t_now < t_exit:  # PM 03:15 ~ PM 03:20 : 일괄 매도
+        if t_sell < t_now < t_exit:  # PM 03:15 ~ PM 03:20:30 : 일괄 매도
             if soldout == False:
+                send_message("일괄 매도를 진행합니다.")
                 stock_dict = get_stock_balance()
+                time.sleep(1)
                 for sym, qty in stock_dict.items():
                     sell(sym, qty)
-                soldout = True
+                    time.sleep(1)
+
+                send_message("매도 완료. 30초 대기..")
+                time.sleep(30)
+                for i in range(retry_count):
+                    stock_dict = get_stock_balance()
+                    if stock_dict:
+                        soldout = False
+                        time.sleep(1)
+                    else:
+                        soldout = True
+                        break
                 bought_list = []
                 time.sleep(1)
         if t_exit < t_now:  # PM 03:20 ~ :프로그램 종료
@@ -295,4 +333,4 @@ try:
             break
 except Exception as e:
     send_message(f"[오류 발생]{e}")
-    time.sleep(1)
+    time.sleep(5)
