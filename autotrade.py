@@ -247,9 +247,10 @@ try:
         else:
             send_message("symbol_list가 비어있습니다. 재시도합니다.")
             symbol_list = get_best_list()
-            time.sleep(2)
+            time.sleep(30)
             if i == retry_count - 1 and not symbol_list:
-                symbol_list = ["005930", "035720", "000660", "069500"]
+                symbol_list = [["삼성전자", "005930"], ["카카오", "035720"], [
+                    "SK하이닉스", "000660"], ["KODEX 200", "069500"]]
                 send_message("symbol_list 불러오기 실패. default로 설정합니다.")
 
     for name, code in symbol_list:
@@ -261,9 +262,9 @@ try:
     while True:
         t_now = datetime.datetime.now()
         t_9 = t_now.replace(hour=9, minute=0, second=0, microsecond=0)
-        t_start = t_now.replace(hour=9, minute=5, second=30, microsecond=0)
+        t_start = t_now.replace(hour=9, minute=10, second=0, microsecond=0)
         t_sell = t_now.replace(hour=15, minute=15, second=0, microsecond=0)
-        t_exit = t_now.replace(hour=15, minute=20, second=30, microsecond=0)
+        t_exit = t_now.replace(hour=15, minute=25, second=0, microsecond=0)
         today = datetime.datetime.today().weekday()
         if today == 5 or today == 6:  # 토요일이나 일요일이면 자동 종료
             send_message("주말이므로 프로그램을 종료합니다.")
@@ -272,7 +273,7 @@ try:
             send_message("잔여 수량을 매도합니다.")
             for sym, qty in stock_dict.items():
                 sell(sym, qty)
-                time.sleep(1)
+                time.sleep(3)
 
             send_message("잔여 수량 매도 완료. 30초 대기..")
             time.sleep(30)
@@ -306,7 +307,7 @@ try:
             time.sleep(1)
             if t_now.minute == 30 and t_now.second <= 10:
                 get_stock_balance()
-                time.sleep(5)
+                time.sleep(10)
         if t_sell < t_now < t_exit:  # PM 03:15 ~ PM 03:20:30 : 일괄 매도
             if soldout == False:
                 send_message("일괄 매도를 진행합니다.")
@@ -314,7 +315,7 @@ try:
                 time.sleep(1)
                 for sym, qty in stock_dict.items():
                     sell(sym, qty)
-                    time.sleep(1)
+                    time.sleep(3)
 
                 send_message("매도 완료. 30초 대기..")
                 time.sleep(30)
@@ -322,7 +323,7 @@ try:
                     stock_dict = get_stock_balance()
                     if stock_dict:
                         soldout = False
-                        time.sleep(1)
+                        time.sleep(3)
                     else:
                         soldout = True
                         break
