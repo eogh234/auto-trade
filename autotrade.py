@@ -295,6 +295,9 @@ try:
                     for _ in range(retry_count):
                         target_price = get_target_price(sym)
                         current_price = get_current_price(sym)
+                        if target_price > get_balance():
+                            bought_list.append(sym)
+                            break
                         if target_price < current_price:
                             buy_qty = 0  # 매수할 수량 초기화
                             buy_qty = int(buy_amount // current_price)
