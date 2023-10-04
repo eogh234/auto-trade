@@ -190,6 +190,7 @@ def buy(code="005930", qty="1"):
         return True
     else:
         send_message(f"[매수 실패]{str(res.json())}")
+        time.sleep(10)
         return False
 
 
@@ -238,16 +239,17 @@ try:
     buy_percent = 0.33  # 종목당 매수 금액 비율
     buy_amount = total_cash * buy_percent  # 종목별 주문 금액 계산
     soldout = False
-    retry_count = 10
+    retry_count = 30
 
     for i in range(retry_count):
+        send_message(symbol_list)
         if symbol_list:
             random.shuffle(symbol_list)  # 종목 리스트 랜덤 셔플
             break
         else:
             send_message("symbol_list가 비어있습니다. 재시도합니다.")
             symbol_list = get_best_list()
-            time.sleep(30)
+            time.sleep(5)
             if i == retry_count - 1 and not symbol_list:
                 symbol_list = [["삼성전자", "005930"], ["카카오", "035720"], [
                     "SK하이닉스", "000660"], ["KODEX 200", "069500"]]
@@ -290,21 +292,26 @@ try:
                 if len(bought_list) < target_buy_count:
                     if sym in bought_list:
                         continue
-                    target_price = get_target_price(sym)
-                    current_price = get_current_price(sym)
-                    if target_price < current_price:
-                        buy_qty = 0  # 매수할 수량 초기화
-                        buy_qty = int(buy_amount // current_price)
-                        if buy_qty > 0:
-                            send_message(
-                                f"{sym} 목표가 달성({target_price} < {current_price}) 매수를 시도합니다.")
-                            result = buy(sym, buy_qty)
-                            if result:
-                                soldout = False
-                                bought_list.append(sym)
-                                get_stock_balance()
-                    time.sleep(1)
-            time.sleep(1)
+                    for _ in range(retry_count):
+                        target_price = get_target_price(sym)
+                        current_price = get_current_price(sym)
+                        if target_price < current_price:
+                            buy_qty = 0  # 매수할 수량 초기화
+                            buy_qty = int(buy_amount // current_price)
+                            if buy_qty > 0:
+                                send_message(
+                                    f"{sym} 목표가 달성({target_price} < {current_price}) 매수를 시도합니다.")
+                                result = buy(sym, buy_qty)
+                                time.sleep(1)
+                                if result:
+                                    soldout = False
+                                    bought_list.append(sym)
+                                    get_stock_balance()
+                                    break
+                                else:
+                                    send_message("매수를 재시도합니다")
+
+                        time.sleep(1)
             if t_now.minute == 30 and t_now.second <= 10:
                 get_stock_balance()
                 time.sleep(10)
