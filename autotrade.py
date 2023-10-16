@@ -239,7 +239,7 @@ try:
     buy_percent = 0.33  # 종목당 매수 금액 비율
     buy_amount = total_cash * buy_percent  # 종목별 주문 금액 계산
     soldout = False
-    retry_count = 30
+    retry_count = 10
 
     for i in range(retry_count):
         send_message(symbol_list)
