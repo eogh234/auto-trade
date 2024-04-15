@@ -124,9 +124,12 @@ def get_stock_balance():
     send_message(f"====주식 보유잔고====")
     for stock in stock_list:
         if int(stock['hldg_qty']) > 0:
-            stock_dict[stock['pdno']] = stock['hldg_qty']
+            stock_dict[stock['pdno']] = [
+                stock['hldg_qty'], stock['evlu_pfls_amt']]
             send_message(
                 f"{stock['prdt_name']}({stock['pdno']}): {stock['hldg_qty']}주")
+            send_message(
+                f"{stock['prdt_name']}({stock['pdno']}): {stock['evlu_pfls_amt']}원")
             time.sleep(0.1)
     send_message(f"주식 평가 금액: {evaluation[0]['scts_evlu_amt']}원")
     time.sleep(0.1)
@@ -160,7 +163,8 @@ def get_balance():
     }
     res = requests.get(URL, headers=headers, params=params)
     cash = res.json()['output']['ord_psbl_cash']
-    send_message(f"주문 가능 현금 잔고: {cash}원")
+    # send_message(f"주문 가능 현금 잔고: {cash}원")
+    # print(f"주문 가능 현금 잔고: {cash}원")
     return int(cash)
 
 
@@ -235,11 +239,11 @@ try:
     stock_dict = get_stock_balance()  # 보유 주식 조회
     for sym in stock_dict.keys():
         bought_list.append(sym)
-    target_buy_count = 5  # 매수할 종목 수
-    buy_percent = 0.33  # 종목당 매수 금액 비율
+    target_buy_count = 10  # 매수할 종목 수
+    buy_percent = 0.15  # 종목당 매수 금액 비율
     buy_amount = total_cash * buy_percent  # 종목별 주문 금액 계산
     soldout = False
-    retry_count = 10
+    retry_count = 5
 
     for i in range(retry_count):
         send_message(symbol_list)
@@ -273,12 +277,14 @@ try:
             break
         if t_9 < t_now < t_start and soldout == False:  # 잔여 수량 매도 AM 09:00 ~ AM 09:05:30
             send_message("잔여 수량을 매도합니다.")
-            for sym, qty in stock_dict.items():
-                sell(sym, qty)
-                time.sleep(3)
+            if stock_dict:
+                for sym, qty in stock_dict.items():
+                    if int(qty[1]) > 0:
+                        sell(sym, qty[0])
+                        time.sleep(3)
 
-            send_message("잔여 수량 매도 완료. 30초 대기..")
-            time.sleep(30)
+                # send_message("잔여 수량 매도 완료. 30초 대기..")
+                time.sleep(30)
 
             stock_dict = get_stock_balance()
             time.sleep(1)
@@ -287,7 +293,7 @@ try:
                 bought_list = []
             else:
                 soldout = False
-        if t_start < t_now < t_sell:  # AM 09:05:30 ~ PM 03:15 : 매수
+        if t_start < t_now < t_sell:  # AM 09:10:00 ~ PM 03:15 : 매수
             for sym in symbol_code_list:
                 if len(bought_list) < target_buy_count:
                     if sym in bought_list:
@@ -296,7 +302,6 @@ try:
                         target_price = get_target_price(sym)
                         current_price = get_current_price(sym)
                         if target_price > get_balance():
-                            bought_list.append(sym)
                             break
                         if target_price < current_price:
                             buy_qty = 0  # 매수할 수량 초기화
@@ -305,43 +310,72 @@ try:
                                 send_message(
                                     f"{sym} 목표가 달성({target_price} < {current_price}) 매수를 시도합니다.")
                                 result = buy(sym, buy_qty)
-                                time.sleep(1)
+                                time.sleep(10)
                                 if result:
                                     soldout = False
                                     bought_list.append(sym)
-                                    get_stock_balance()
+                                    stock_dict = get_stock_balance()
+                                    time.sleep(3)
+                                    print("====After Buy====")
+                                    print("stock_dict")
+                                    print(stock_dict)
+                                    print("bought_list")
+                                    print(bought_list)
+                                    print("=================")
                                     break
                                 else:
                                     send_message("매수를 재시도합니다")
 
                         time.sleep(1)
-            if t_now.minute == 30 and t_now.second <= 10:
-                get_stock_balance()
-                time.sleep(10)
-        if t_sell < t_now < t_exit:  # PM 03:15 ~ PM 03:20:30 : 일괄 매도
-            if soldout == False:
-                send_message("일괄 매도를 진행합니다.")
-                stock_dict = get_stock_balance()
-                time.sleep(1)
-                for sym, qty in stock_dict.items():
-                    sell(sym, qty)
-                    time.sleep(3)
+                else:
+                    break
+            for sym, qty in stock_dict.items():
+                if int(qty[1]) > 0:
+                    send_message(f"{sym} 매도를 진행합니다.")
+                    sell(sym, stock_dict[sym][0])
 
-                send_message("매도 완료. 30초 대기..")
-                time.sleep(30)
-                for i in range(retry_count):
+                    # send_message("매도 완료. 30초 대기..")
+                    time.sleep(30)
+
                     stock_dict = get_stock_balance()
                     if stock_dict:
                         soldout = False
+                        bought_list.remove(sym)
                         time.sleep(3)
                     else:
                         soldout = True
+                        bought_list = []
                         break
-                bought_list = []
-                time.sleep(1)
+                    time.sleep(1)
+            if t_now.minute == 30 and t_now.second <= 15:
+                stock_dict = get_stock_balance()
+                time.sleep(10)
+        # if t_sell < t_now < t_exit:  # PM 03:15 ~ PM 03:20:30 : 일괄 매도
+        #     if soldout == False:
+        #         send_message("일괄 매도를 진행합니다.")
+        #         stock_dict = get_stock_balance()
+        #         time.sleep(1)
+        #         for sym, qty in stock_dict.items():
+        #             if int(qty[1]) > 0:
+        #                 sell(sym, qty[0])
+        #                 time.sleep(3)
+
+        #         # send_message("매도 완료. 30초 대기..")
+        #         time.sleep(30)
+
+        #         stock_dict = get_stock_balance()
+        #         if stock_dict:
+        #             soldout = False
+        #             time.sleep(3)
+        #         else:
+        #             soldout = True
+        #             bought_list = []
+        #             break
+        #         time.sleep(1)
         if t_exit < t_now:  # PM 03:20 ~ :프로그램 종료
             send_message("프로그램을 종료합니다.")
             break
 except Exception as e:
     send_message(f"[오류 발생]{e}")
     time.sleep(5)
+    exit(0)
