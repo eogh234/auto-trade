@@ -1,4 +1,3 @@
-import os
 import requests
 import json
 import datetime
@@ -337,6 +336,8 @@ try:
                     # send_message("매도 완료. 30초 대기..")
                     time.sleep(30)
 
+                    if sym in symbol_code_list:
+                        symbol_code_list.remove(sym)
                     stock_dict = get_stock_balance()
                     if stock_dict:
                         soldout = False
